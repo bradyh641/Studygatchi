@@ -26,3 +26,16 @@ class Task(models.Model):
     due_date = models.DateTimeField()
     description = models.TextField(default="No description given")
     user = models.ForeignKey(StudyUser, on_delete=models.CASCADE)
+
+# Uncomment if you want to store prohibited sites in the database.
+# class ProhibitedSite(models.Model):
+#     user = models.ForeignKey(StudyUser, on_delete=models.CASCADE)
+#     hostname = models.CharField(max_length=253)
+
+#     class Meta:
+#         constraints = [
+#             models.UniqueConstraint(
+#                 fields=["user", "hostname"],
+#                 name="unique_prohibited_site_per_user",
+#             )
+#         ]
