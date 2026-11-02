@@ -5,8 +5,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 
-from .models import StudyUser, Task  # TODO remove, should be serializer
-from .serializers import TaskSerializer
+from .models import ProhibitedSite, StudyUser, Task  # TODO remove, should be serializer
+from .serializers import ProhibitedSiteSerializer, TaskSerializer
 
 
 @api_view(["GET"])
@@ -84,3 +84,42 @@ def update_task(request: Request, pk: int) -> Response:
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(["GET", "POST"])
+@permission_classes([IsAuthenticated])
+def prohibited_sites(request: Request) -> Response:
+    if not request.user.is_active:
+        return Response(status=status.HTTP_403_FORBIDDEN)
+
+    if request.method == "GET":
+        sites = ProhibitedSite.objects.filter(user=request.user).order_by("hostname")
+        serializer = ProhibitedSiteSerializer(sites, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    serializer = ProhibitedSiteSerializer(data=request.data, context={"request": request})
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    site, created = ProhibitedSite.objects.get_or_create(
+        user=request.user,
+        hostname=serializer.validated_data["hostname"],
+    )
+    response_serializer = ProhibitedSiteSerializer(site)
+    return Response(
+        response_serializer.data,
+        status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+    )
+
+
+@api_view(["DELETE"])
+@permission_classes([IsAuthenticated])
+def delete_prohibited_site(request: Request, pk: int) -> Response:
+    if not request.user.is_active:
+        return Response(status=status.HTTP_403_FORBIDDEN)
+
+    deleted, _ = ProhibitedSite.objects.filter(pk=pk, user=request.user).delete()
+    if not deleted:
+        return Response({"error": "Prohibited site not found"}, status=status.HTTP_404_NOT_FOUND)
+
+    return Response(status=status.HTTP_204_NO_CONTENT)

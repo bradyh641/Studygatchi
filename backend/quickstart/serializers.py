@@ -1,11 +1,12 @@
 from datetime import datetime
 from typing import Any
+from urllib.parse import urlsplit
 
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 from rest_framework import serializers
 
-from .models import StudyUser, Task
+from .models import ProhibitedSite, StudyUser, Task
 
 # TODO Add docstrings to each of these functions to help newcomers understand what they do
 
@@ -45,6 +46,35 @@ class TaskSerializer(serializers.HyperlinkedModelSerializer):
         if value < timezone.now():
             raise serializers.ValidationError("Newly created task cannot be past due")
         return value
+
+
+class ProhibitedSiteSerializer(serializers.ModelSerializer):
+    user = serializers.HiddenField(default=serializers.CurrentUserDefault())
+
+    class Meta:
+        model = ProhibitedSite
+        fields = ["id", "hostname", "user"]
+        read_only_fields = ["id"]
+
+    def validate_hostname(self, value: str) -> str:
+        hostname = value.strip()
+        if not hostname:
+            raise serializers.ValidationError("A website address is required.")
+
+        parsed = urlsplit(hostname if "://" in hostname else f"https://{hostname}")
+        if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+            raise serializers.ValidationError("Enter a valid website address.")
+        if parsed.username or parsed.password or parsed.port:
+            raise serializers.ValidationError("Enter a hostname without credentials or a port.")
+
+        normalized = parsed.hostname.rstrip(".").lower()
+        if "." not in normalized or any(
+            not label or label.startswith("-") or label.endswith("-")
+            for label in normalized.split(".")
+        ):
+            raise serializers.ValidationError("Enter a valid website hostname.")
+
+        return normalized
 
     def validate_reward(self, value: int) -> int:
         if value < 0:
